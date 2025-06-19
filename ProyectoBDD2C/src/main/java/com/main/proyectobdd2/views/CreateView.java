@@ -12,6 +12,7 @@ import com.vaadin.flow.router.Route;
 
 import com.vaadin.flow.component.textfield.TextField;
 import org.bson.types.ObjectId;
+import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDate;
 
@@ -20,6 +21,8 @@ import java.time.LocalDate;
 public class CreateView extends BaseView {
 
     private Button btnSave;
+    private Button btnCopy;
+    private HorizontalLayout idLayout;
 
     public CreateView(ReviewController reviewController) {
         super(reviewController);
@@ -28,8 +31,12 @@ public class CreateView extends BaseView {
     @Override
     protected void initializeComponents(){
         title = new H1("Create New");
-        id = new TextField("Id");
-        id.setVisible(false);
+        id = new TextField("Last Generated ID");
+        id.setReadOnly(true);
+        btnCopy = new Button("Copy");
+        btnCopy.setVisible(false);
+        idLayout = new HorizontalLayout(id, btnCopy);
+        idLayout.setAlignItems(Alignment.BASELINE);
         name = new TextField("Name");
         email = new TextField("Email");
         movieId = new TextField("Movie id");
@@ -43,15 +50,27 @@ public class CreateView extends BaseView {
     }
 
     @Override
-    protected void setupEventHandlers(){
+    protected void setupEventHandlers()
+    {
         btnSave.addClickListener(e -> onSaveClicked());
+        btnCopy.addClickListener(e-> onCopyClicked());
+    }
+
+    @Override
+    protected void setupLayout(){
+        add(title, idLayout, name, email, movieId, text, datePicker, btnLayout);
     }
 
     private void onSaveClicked(){
         if(validateFields()){
             try{
-                saveData();
-                Notification.show("Data saved!");
+                String s = saveData();
+                if(!s.isEmpty()){
+                    id.setValue(s);
+                    btnCopy.setVisible(true);
+                    Notification.show("Data saved!");
+                }
+                else Notification.show("Error saving data");
                 clearFields();
             } catch(Exception ex){
                 Notification.show("Error: " + ex.getMessage());
@@ -59,14 +78,35 @@ public class CreateView extends BaseView {
         }
     }
 
-    private void saveData(){
+    private void onCopyClicked(){
+        if (id.getValue() != null && !id.getValue().isEmpty()) {
+            id.focus();
+            // Usando el API de Vaadin para el portapapeles
+            getElement().executeJs("navigator.clipboard.writeText($0)", id.getValue());
+            Notification.show("ID copiado al portapapeles!");
+        } else {
+            Notification.show("No hay ID para copiar");
+        }
+
+    }
+
+    private String saveData(){
         Review user = new Review();
         user.setName(name.getValue());
         user.setEmail(email.getValue());
         user.setMovieId(new ObjectId(movieId.getValue()));
         user.setText(text.getValue());
         user.setDate(datePicker.getValue());
-        reviewController.save(user);
+        ResponseEntity<Review> us = reviewController.save(user);
+        return us.getBody() != null ? us.getBody().getId().toString() : "";
     }
 
+    @Override
+    protected void clearFields(){
+        name.clear();
+        email.clear();
+        movieId.clear();
+        text.clear();
+        datePicker.clear();
+    }
 }
